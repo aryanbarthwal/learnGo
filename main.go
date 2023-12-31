@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"crypto/sha256"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -55,6 +58,11 @@ func getAlbums(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, albums)
 }
 
+func ConvertToSha256(toConvert string) string {
+ 	conversion := sha256.Sum256([]byte(toConvert))
+ 	return fmt.Sprintf("%x\n", conversion)
+}
+
 func registerUser(c *gin.Context) {
 		var user RegisterUser
 		if err := c.ShouldBindJSON(&user); err != nil {
@@ -68,6 +76,9 @@ func registerUser(c *gin.Context) {
 			c.JSON(400, gin.H{"error": "Please provide all the fields"})
 			return
 		}
+
+	//  passwordHash := ConvertToSha256(user.Password)
+
 		if(len(user.Password) < 8) {
 			c.JSON(400, gin.H{"error": "Password should be at least 8 characters long"})
 			return
@@ -103,6 +114,32 @@ func loginUser(c *gin.Context) {
     	c.IndentedJSON(http.StatusOK, gin.H{"message": "User Logged In Successfully!!"})
 }
 
+type JsonFormatter struct {
+    UserId int `json:"userId"`
+    Id int `json:"id"`
+    Title string `json:"title"`
+    Body string `json:"body"`
+
+}
+
+func goAndCallJsonFormatterApi(c *gin.Context) {
+	var jsonFormatter []JsonFormatter
+
+	resp, err := http.Get("https://jsonplaceholder.typicode.com/posts")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch data from the external API"})
+		return
+	}
+	defer resp.Body.Close()
+
+	if err := json.NewDecoder(resp.Body).Decode(&jsonFormatter); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode JSON response"})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, jsonFormatter)
+}
+
 func main() {
 
 	db, err := gorm.Open(postgres.New(postgres.Config{
@@ -129,5 +166,7 @@ func main() {
     router.GET("/albums/:id/:name", getSingleAlbums)
     router.POST("/register", registerUser)
     router.POST("/login", loginUser)
+	
+	router.GET("/getRandomData", goAndCallJsonFormatterApi)
 	router.Run("localhost:8085")
 }
